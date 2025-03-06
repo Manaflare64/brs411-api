@@ -28,9 +28,10 @@ def search_brs411(query, results_per_page=100):
             title = result.text.strip()
             link = "http://brs411.org" + result['href']
             snippet = result.find_next('div').text.strip() if result.find_next('div') else ""
+            snippet = snippet[:300] + "..." if len(snippet) > 300 else snippet  # Trim long snippets
             results.append({"title": title, "link": link, "snippet": snippet})
 
-    return results[:10]  # Limit to 10 results
+    return results[:5]  # Limit to 5 results
 
 # 🔒 Block external access (only allow requests from local machine)
 @app.before_request
