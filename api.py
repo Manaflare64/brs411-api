@@ -30,7 +30,7 @@ def search_brs411(query, results_per_page=100):
             snippet = result.find_next('div').text.strip() if result.find_next('div') else ""
             results.append({"title": title, "link": link, "snippet": snippet})
 
-    return results
+    return results[:10]  # Limit to 10 results
 
 # 🔒 Block external access (only allow requests from local machine)
 @app.before_request
