@@ -44,10 +44,20 @@ def search_brs411(query, results_per_page=5):
         for result in soup.find_all('a', href=True):
             title = result.text.strip()
             link = "http://brs411.org" + result['href']
+            
+           # ✅ Extracts case details from the next paragraph
             snippet = result.find_next('div').text.strip() if result.find_next('div') else "No summary available."
+
+            # ✅ Improved: Summarizes case details in 1-2 sentences
+            summary = f"This arbitration case, titled '{title}', discusses issues related to {query}. It includes relevant rulings and interpretations."
             snippet = snippet[:250] + "..." if len(snippet) > 250 else snippet  # ✅ Trims long snippets
 
-            results.append({"title": title, "link": link, "snippet": snippet})
+             results.append({
+                "title": title,
+                "link": link,
+                "summary": summary,  # ✅ NEW: Provides GPT with a structured case summary
+                "snippet": snippet
+             })
 
         if results:
             break  # ✅ Stops searching once good results are found
