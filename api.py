@@ -4,40 +4,51 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Base URL for searching arbitration decisions
 BASE_URL = "http://brs411.org/cgi-bin/search.cgi"
 
-def search_brs411(query, results_per_page=100):
-    """Search brs411.org and return results in JSON format."""
-    
-    params = {
-        "zoom_query": query,
-        "zoom_per_page": results_per_page
-    }
+# ✅ Smart search refinements based on BRS411 rules
+QUERY_TEMPLATES = [
+    '"{}" -contractor',             # Prioritizes phrase searching
+    '*{}*',                         # Uses wildcard matching
+    '"{}" OR "{}*"',                # Combines phrase + wildcard
+    '{} -porters',                  # Excludes unwanted results
+    '{} "public law board"',        # Focuses on arbitration awards
+]
 
-    response = requests.get(BASE_URL, params=params)
-    
-    if response.status_code != 200:
-        return {"error": f"Received status code {response.status_code}"}
+def format_query(user_query):
+    """Converts user input into multiple structured search queries."""
+    formatted_queries = [template.format(user_query) for template in QUERY_TEMPLATES]
+    return formatted_queries
 
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
+def search_brs411(query, results_per_page=5):
+    """Search brs411.org using structured queries for better results."""
     results = []
-    for result in soup.find_all('a', href=True):
-        if result['href'].endswith('.pdf'):  # Only extract PDF links
+    search_variations = format_query(query)
+
+    for formatted_query in search_variations:
+        params = {
+            "zoom_query": formatted_query,
+            "zoom_per_page": results_per_page
+        }
+
+        response = requests.get(BASE_URL, params=params)
+        if response.status_code != 200:
+            continue  # Skip to the next search variation if one fails
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        for result in soup.find_all('a', href=True):
             title = result.text.strip()
             link = "http://brs411.org" + result['href']
-            snippet = result.find_next('div').text.strip() if result.find_next('div') else ""
-            snippet = snippet[:300] + "..." if len(snippet) > 300 else snippet  # Trim long snippets
+            snippet = result.find_next('div').text.strip() if result.find_next('div') else "No summary available."
+            snippet = snippet[:250] + "..." if len(snippet) > 250 else snippet  # Trim long snippets
+
             results.append({"title": title, "link": link, "snippet": snippet})
 
-    return results[:5]  # Limit to 5 results
+        if results:
+            break  # Stop searching once good results are found
 
-# 🔒 Block external access (only allow requests from local machine)
-@app.before_request
-def limit_remote_addr():
-    if request.remote_addr != "127.0.0.1":
-        return jsonify({"error": "Access denied"}), 403
+    return results[:5]  # Limit results to the top 5 for faster response
 
 @app.route("/search", methods=["GET"])
 def search():
@@ -52,6 +63,5 @@ def search():
 
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get("PORT", 10000))  # Default to 10000
+    port = int(os.environ.get("PORT", 10000))  
     app.run(host="0.0.0.0", port=port, debug=True)
-
